@@ -13,6 +13,7 @@ from metricproducer import MetricProvider
 from userbets import UserBetsProvider
 from rolling import RollingProvider
 from metricadvancedproducer import MetricAdvancedProvider
+from loadproducer import LoadProvider
 
 
 MAX_NUMBER_PIZZAS_IN_ORDER = 10
@@ -38,13 +39,16 @@ def produce_msgs(
     nr_messages=-1,
     max_waiting_time_in_sec=5,
     subject="pizza",
+    compression_type=None,
 ):
+    print("Using compression_type: ", compression_type)
     if security_protocol.upper() == "PLAINTEXT":
         producer = KafkaProducer(
             bootstrap_servers=hostname + ":" + port,
             security_protocol="PLAINTEXT",
             value_serializer=lambda v: json.dumps(v).encode("ascii"),
             key_serializer=lambda v: json.dumps(v).encode("ascii"),
+            compression_type=compression_type,
         )
     elif security_protocol.upper() == "SSL":
         producer = KafkaProducer(
@@ -55,6 +59,7 @@ def produce_msgs(
             ssl_keyfile=cert_folder + "/service.key",
             value_serializer=lambda v: json.dumps(v).encode("ascii"),
             key_serializer=lambda v: json.dumps(v).encode("ascii"),
+            compression_type=compression_type,
         )
     elif security_protocol.upper() == "SASL_SSL":
         producer = KafkaProducer(
@@ -66,6 +71,7 @@ def produce_msgs(
             sasl_plain_password=password,
             value_serializer=lambda v: json.dumps(v).encode("ascii"),
             key_serializer=lambda v: json.dumps(v).encode("ascii"),
+            compression_type=compression_type,
         )
     else:
         sys.exit("This security protocol is not supported!")
@@ -88,8 +94,11 @@ def produce_msgs(
         fake.add_provider(UserBetsProvider)
     elif subject == "rolling":
         fake.add_provider(RollingProvider)
+    elif subject == "load":
+        fake.add_provider(LoadProvider)
     else:
         fake.add_provider(PizzaProvider)
+    print("SUBJECT: ", subject)
     while i < nr_messages:
         if subject in [
             "stock",
@@ -99,6 +108,7 @@ def produce_msgs(
             "bet",
             "rolling",
             "advancedmetric",
+            "load",
         ]:
             message, key = fake.produce_msg()
         else:
@@ -190,6 +200,10 @@ def main():
                 pizza is the default""",
         required=False,
     )
+    parser.add_argument(
+        "--compression-type",
+        help=""
+    )
     args = parser.parse_args()
     p_security_protocol = args.security_protocol
     p_cert_folder = args.cert_folder
@@ -200,6 +214,7 @@ def main():
     p_port = args.port
     p_topic_name = args.topic_name
     p_subject = args.subject
+    p_compression_type = args.compression_type
     produce_msgs(
         security_protocol=p_security_protocol,
         cert_folder=p_cert_folder,
@@ -211,6 +226,7 @@ def main():
         nr_messages=int(args.nr_messages),
         max_waiting_time_in_sec=float(args.max_waiting_time),
         subject=p_subject,
+        compression_type=p_compression_type,
         sasl_mechanism=p_sasl_mechanism,
     )
     print(args.nr_messages)
